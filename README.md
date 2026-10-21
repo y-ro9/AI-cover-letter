@@ -1,6 +1,6 @@
 <div align="center">
 
-# ✳ AI Cover Letter Generator
+# ✳ AI Cover Letter Generator *
 
 ### · LLM-Powered SaaS Utility
 
@@ -49,44 +49,82 @@ Built as the **Sprint 4 deliverable** for the ProDesk Foundation Projects track 
 
 ## 🏗 Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                       React Frontend                        │
-│                                                             │
-│   ┌─────────────┐    ┌─────────────┐    ┌──────────────┐    │
-│   │  Form UI    │───▶│  App State  │───▶│  Controller  │    │
-│   │  (onChange) │    │  (useState) │    │  (handle*)   │    │
-│   └─────────────┘    └─────────────┘    └──────┬───────┘    │
-│                                                │            │
-│                      ┌─────────────────────────┼─────────┐  │
-│                      │                         │         │  │
-│                      ▼                         ▼         ▼  │
-│              ┌──────────────┐         ┌──────────────┐      │
-│              │   template   │         │    gemini    │      │
-│              │  (Phase 1)   │         │  (Phase 2)   │      │
-│              └──────────────┘         └──────┬───────┘      │
-│                                              │              │
-│                                    ┌─────────┼─────────┐    │
-│                                    │         ▼         │    │
-│                                    │  ┌──────────────┐ │    │
-│                                    │  │  pdf.js      │ │    │
-│                                    │  │  (Phase 3)   │ │    │
-│                                    │  └──────────────┘ │    │
-│                                    │                    │    │
-│                                    ▼                    ▼    │
-│                             ┌────────────┐      ┌─────────┐ │
-│                             │ Output Card│◀─────│ marked  │ │
-│                             │ (Copy btn) │      │ (render)│ │
-│                             └────────────┘      └─────────┘ │
-└─────────────────────────────────────────────────────────────┘
-                               │
-                               ▼
-                    ┌────────────────────┐
-                    │  Google Gemini API │
-                    │  (v1beta/generate) │
-                    └────────────────────┘
+The app has **five clean layers**, each with a single responsibility:
+
+```mermaid
+flowchart TB
+    subgraph CLIENT["🖥️ CLIENT — React + Vite (Browser)"]
+        direction TB
+
+        subgraph UI["① UI Layer"]
+            Form["📋 Form UI<br/>name · role · company · skills"]
+            Dropzone["📄 PDF Dropzone"]
+        end
+
+        subgraph STATE["② State Layer"]
+            AppState["⚙️ useState<br/>form · resumeText · letter<br/>isGenerating · error · copied"]
+        end
+
+        subgraph CTRL["③ Controller Layer"]
+            Gen["handleGenerate"]
+            Res["handleResume"]
+            Copy["handleCopy"]
+        end
+
+        subgraph SVC["④ Service Layer"]
+            Tpl["📝 template.js<br/>Phase 1 · offline simulation"]
+            Gem["🤖 gemini.js<br/>Phase 2 · LLM call"]
+            Pdf["📄 pdf.js<br/>Phase 3 · PDF extraction"]
+        end
+
+        subgraph RENDER["⑤ Render Layer"]
+            Marked["✏️ marked.parse()<br/>markdown → HTML"]
+            Output["📨 Output Card<br/>+ Copy to Clipboard"]
+        end
+    end
+
+    Gemini[["🌐 Google Gemini API<br/>v1beta/generateContent"]]
+
+    Form -->|onChange| AppState
+    Dropzone -->|onDrop| Res
+    AppState --> Gen
+    AppState --> Res
+    AppState --> Copy
+
+    Gen -.->|mode: sim| Tpl
+    Gen -.->|mode: ai| Gem
+    Res -.->|extract| Pdf
+
+    Pdf -.->|resumeText| AppState
+    Gem <-->|HTTPS POST| Gemini
+
+    Tpl --> Marked
+    Gem --> Marked
+    Marked --> Output
+    Copy --> Output
+
+    style CLIENT fill:#eef2ff,stroke:#4f6ef7,stroke-width:2px,color:#1e293b
+    style UI fill:#e0f2fe,stroke:#0284c7,color:#0f172a
+    style STATE fill:#f3e8ff,stroke:#9333ea,color:#0f172a
+    style CTRL fill:#fef3c7,stroke:#d97706,color:#0f172a
+    style SVC fill:#dcfce7,stroke:#16a34a,color:#0f172a
+    style RENDER fill:#fce7f3,stroke:#db2777,color:#0f172a
+    style Gemini fill:#fff7ed,stroke:#ea580c,stroke-width:2px,color:#0f172a
 ```
 
+### Layer responsibilities
+
+| # | Layer | File | Responsibility |
+|---|---|---|---|
+| ① | **UI** | `src/App.jsx` | Form fields, PDF dropzone, output card, copy button |
+| ② | **State** | `src/App.jsx` | Single source of truth — form, resume text, letter, loading, error |
+| ③ | **Controller** | `src/App.jsx` | `handleGenerate` · `handleResume` · `handleCopy` |
+| ④ | **Service** | `src/lib/*` | `template.js` (simulation) · `gemini.js` (API) · `pdf.js` (parsing) |
+| ⑤ | **Render** | `marked` lib | Markdown → HTML paragraphs + render into output card |
+
+### Data flow in one line
+
+> Form → State → Controller → Service → Render → Output Card
 ### Layer responsibilities
 
 | Layer | File | Responsibility |
